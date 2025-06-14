@@ -1,12 +1,22 @@
 # -*- coding: utf-8 -*-
-# Parameterized profile to create a multisite experiment.
+"""Parameterized profile to create a multisite experiment via multiple LANs.
+
+Each “LAN” block lets you choose:
+ - which CloudLab site (aggregate) to use,
+ - how many nodes to request on that LAN,
+ - which OS image each node should run,
+ - which hardware type each node should use.
+
+Click “Add another LAN block” to create LAN1, LAN2, etc., and at the end
+all of those LANs will be interconnected.
+"""
 
 import geni.portal as portal
 import geni.rspec.pg as pg
 import geni.rspec.igext as ig
 import geni.rspec.emulab as emulab
 
-pc = portal.Context()
+pc      = portal.Context()
 request = pc.makeRequestRSpec()
 
 # -------------------------------------------------------------------
@@ -30,29 +40,23 @@ imageList = [
 ]
 
 # -------------------------------------------------------------------
-# 1) Define a multi-value "clusters" struct parameter
+# 1) Define a multi-value "lans" struct parameter
 # -------------------------------------------------------------------
 ps = pc.defineStructParameter(
-    'clusters', 'Clusters', [],
-    multiValue      = True,
-    min             = 1,
-    hide            = False,
-    multiValueTitle = 'Add another cluster block',
+    'lans', 'LANs', [],
+    multiValue       = True,
+    min              = 1,
+    hide             = False,
+    multiValueTitle  = 'Add another LAN block',
     members = [
         portal.Parameter(
-            'cluster', 'Cluster (site)',
+            'site', 'CloudLab site (aggregate)',
             portal.ParameterType.AGGREGATE, '',
-            longDescription='Select which CloudLab site to use.'
+            longDescription='Select which CloudLab site to run this LAN on.'
         ),
         portal.Parameter(
-            'count', 'Number of Nodes',
-            portal.ParameterType.INTEGER, 1,
-            longDescription='How many nodes to request at this site.'
-        ),
-        portal.Parameter(
-            'lan', 'Create a LAN?',
-            portal.ParameterType.BOOLEAN, False,
-            longDescription='If checked, interconnect these nodes on a LAN.'
+            'count', 'Number of Nodes', portal.ParameterType.INTEGER, 1,
+            longDescription='How many nodes to request on this LAN.'
         ),
         portal.Parameter(
             'osImage', 'OS Image for each node',
@@ -62,7 +66,7 @@ ps = pc.defineStructParameter(
         portal.Parameter(
             'hwType', 'Hardware type for each node',
             portal.ParameterType.NODETYPE, '',
-            longDescription='Specify a hardware type (e.g., pc3000, d710).'
+            longDescription='Specify a hardware type (e.g., pc3000, d710), or leave default.'
         ),
     ]
 )
@@ -72,47 +76,46 @@ ps = pc.defineStructParameter(
 # -------------------------------------------------------------------
 params = pc.bindParameters()
 
-# Validate each cluster block
-for idx, cluster in enumerate(params.clusters):
-    if cluster.count < 1:
+for idx, lanblock in enumerate(params.lans):
+    if lanblock.count < 1:
         pc.reportError(portal.ParameterError(
-            'Entry %d: count must be >= 1.' % (idx + 1),
-            ['clusters[%d].count' % idx]
+            'LAN %d: node count must be at least 1.' % (idx + 1),
+            ['lans[%d].count' % idx]
         ))
-    # cluster.cluster may be empty to use the default site
+    # we allow an empty site (use default) if desired
 
 pc.verifyParameters()
 
 # -------------------------------------------------------------------
 # 3) Build the RSpec
 # -------------------------------------------------------------------
-for cluster in params.clusters:
-    # Derive a short site name from the URN, e.g. urn:publicid:...+emulab.net+... -> "emulab"
-    if cluster.cluster:
-        parts = cluster.cluster.split('+')
-        if len(parts) > 1:
-            short = parts[1].split('.')[0]
-        else:
-            short = 'site'
+all_nodes = []
+
+for lanblock in params.lans:
+    # derive short name from site URN, e.g. urn:...+emulab.net+... → "emulab"
+    if lanblock.site:
+        parts = lanblock.site.split('+')
+        short = parts[1].split('.')[0] if len(parts) > 1 else 'site'
     else:
         short = 'site'
 
-    # Create a LAN object if requested
+    # Create this LAN
     lan = None
-    if cluster.count > 1 and cluster.lan:
-        lan = request.Link() if cluster.count == 2 else request.LAN()
+    if lanblock.count > 1:
+        lan = request.Link() if lanblock.count == 2 else request.LAN()
 
-    for i in range(cluster.count):
-        name = '%s-%d' % (short, i)
-        node = request.RawPC(name)
-        if cluster.cluster:
-            node.component_manager_id = cluster.cluster
+    # instantiate nodes in this LAN
+    for i in range(lanblock.count):
+        node_name = '%s-%d' % (short, i)
+        node = request.RawPC(node_name)
+        if lanblock.site:
+            node.component_manager_id = lanblock.site
 
-        if cluster.osImage and cluster.osImage != 'default':
-            node.disk_image = cluster.osImage
+        if lanblock.osImage and lanblock.osImage != 'default':
+            node.disk_image = lanblock.osImage
 
-        if cluster.hwType:
-            node.hardware_type = cluster.hwType
+        if lanblock.hwType:
+            node.hardware_type = lanblock.hwType
 
         node.startVNC()
 
@@ -120,5 +123,18 @@ for cluster in params.clusters:
             iface = node.addInterface('eth1')
             lan.addInterface(iface)
 
-# Print the RSpec
+        all_nodes.append(node)
+
+# -------------------------------------------------------------------
+# 4) Interconnect all LANs together
+# -------------------------------------------------------------------
+if len(all_nodes) > 1:
+    backbone = request.LAN()
+    for node in all_nodes:
+        iface = node.addInterface('eth2')
+        backbone.addInterface(iface)
+
+# -------------------------------------------------------------------
+# 5) Output RSpec
+# -------------------------------------------------------------------
 pc.printRequestRSpec(request)
