@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Parameterized profile: define nodes and connect all together on a single LAN."""
+"""Parameterized profile: define node groups and connect all together on a single LAN."""
 
 import geni.portal as portal
 import geni.rspec.pg as pg
 import geni.rspec.emulab as emulab
 
-pc = portal.Context()
+pc      = portal.Context()
 request = pc.makeRequestRSpec()
 
 # -------------------------------------------------------------------
@@ -73,19 +73,23 @@ pc.defineParameter(
 )
 
 # -------------------------------------------------------------------
-# 1) Define a multi-value "nodes" struct parameter
+# 1) Define a multi-value "groups" struct parameter
 # -------------------------------------------------------------------
 ps = pc.defineStructParameter(
-    "nodes", "Nodes", [], 
-    multiValue=True, min=1, hide=False, multiValueTitle="Add another node",
+    "groups", "Node Groups", [], 
+    multiValue=True, min=1, hide=False, multiValueTitle="Add another node group",
     members=[
         portal.Parameter(
-            "osImage", "OS Image for this node",
-            portal.ParameterType.IMAGE, imageList[0], imageList,
-            longDescription="Select the OS image for this node."
+            "count", "Number of nodes", portal.ParameterType.INTEGER, 1,
+            longDescription="How many identical nodes to create in this group."
         ),
         portal.Parameter(
-            "hwType", "Hardware type for this node",
+            "osImage", "OS Image for these nodes",
+            portal.ParameterType.IMAGE, imageList[0], imageList,
+            longDescription="Select the OS image for this group."
+        ),
+        portal.Parameter(
+            "hwType", "Hardware type for these nodes",
             portal.ParameterType.NODETYPE, "",
             longDescription="Specify a hardware type (e.g., pc3000, d710), or leave default."
         ),
@@ -97,13 +101,20 @@ ps = pc.defineStructParameter(
 # -------------------------------------------------------------------
 params = pc.bindParameters()
 
-# At least one node
-if not params.nodes:
+# Must have at least one group
+if not params.groups:
     pc.reportError(portal.ParameterError(
-        "You must define at least one node.",
-        ["nodes"]
+        "You must define at least one node group.",
+        ["groups"]
     ))
-# Temporary FS size sanity
+
+for idx, grp in enumerate(params.groups):
+    if grp.count < 1:
+        pc.reportError(portal.ParameterError(
+            "Group %d: count must be >= 1." % (idx + 1),
+            ["groups[%d].count" % idx]
+        ))
+    # temp FS size sanity
 if params.tempFileSystemSize < 0 or params.tempFileSystemSize > 200:
     pc.reportError(portal.ParameterError(
         "Please specify a temp filesystem size between 0 and 200GB.",
@@ -115,11 +126,9 @@ pc.verifyParameters()
 # -------------------------------------------------------------------
 # 3) Create a single LAN for all nodes
 # -------------------------------------------------------------------
-if len(params.nodes) > 1:
-    if len(params.nodes) == 2:
-        lan = request.Link()
-    else:
-        lan = request.LAN()
+if sum(grp.count for grp in params.groups) > 1:
+    total = sum(grp.count for grp in params.groups)
+    lan = request.Link() if total == 2 else request.LAN()
     if params.bestEffort:
         lan.best_effort = True
     elif params.linkSpeed > 0:
@@ -130,34 +139,38 @@ else:
     lan = None
 
 # -------------------------------------------------------------------
-# 4) Instantiate each node and attach to LAN
+# 4) Instantiate each node group and attach to LAN
 # -------------------------------------------------------------------
-for i, nodeParam in enumerate(params.nodes):
-    name = "vm%d" % i if params.useVMs else "node%d" % i
-    node = request.XenVM(name) if params.useVMs else request.RawPC(name)
+node_idx = 0
+for grp in params.groups:
+    for _ in range(grp.count):
+        name = "vm%d" % node_idx if params.useVMs else "node%d" % node_idx
+        node = request.XenVM(name) if params.useVMs else request.RawPC(name)
 
-    # OS image
-    if nodeParam.osImage and nodeParam.osImage != "default":
-        node.disk_image = nodeParam.osImage
+        # OS image
+        if grp.osImage and grp.osImage != "default":
+            node.disk_image = grp.osImage
 
-    # Hardware type
-    if nodeParam.hwType:
-        node.hardware_type = nodeParam.hwType
+        # Hardware type
+        if grp.hwType:
+            node.hardware_type = grp.hwType
 
-    # Attach to LAN
-    if lan:
-        iface = node.addInterface("eth1")
-        lan.addInterface(iface)
+        # Attach to LAN
+        if lan:
+            iface = node.addInterface("eth1")
+            lan.addInterface(iface)
 
-    # Optional ephemeral blockstore
-    if params.tempFileSystemSize > 0 or params.tempFileSystemMax:
-        bs = node.Blockstore("%s-bs" % name, params.tempFileSystemMount)
-        bs.size = "0GB" if params.tempFileSystemMax else "%dGB" % params.tempFileSystemSize
-        bs.placement = "any"
+        # Optional ephemeral blockstore
+        if params.tempFileSystemSize > 0 or params.tempFileSystemMax:
+            bs = node.Blockstore("%s-bs" % name, params.tempFileSystemMount)
+            bs.size = "0GB" if params.tempFileSystemMax else "%dGB" % params.tempFileSystemSize
+            bs.placement = "any"
 
-    # VNC
-    if params.startVNC:
-        node.startVNC()
+        # VNC
+        if params.startVNC:
+            node.startVNC()
+
+        node_idx += 1
 
 # -------------------------------------------------------------------
 # 5) Print the RSpec
