@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Parameterized profile: define node groups and connect all together on a single LAN."""
+"""Multi-node profile: define node groups and connect all together on a single LAN. Supports nodes of different types and OSes. Multi-site functionality is also available."""
 
 import geni.portal as portal
 import geni.rspec.pg as pg
@@ -18,12 +18,9 @@ imageList = [
     ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:BG_QOE_PRED_P4_SDN',   'QOE-PRED-P4-SDN'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD',           'UBUNTU22-64-STD'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-BETA',          'UBUNTU24-64-BETA'),
-    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:ubuntu24lts',          'UBUNTU 24.04 LTS'),
     ('urn:publicid:IDN+utah.cloudlab.us+image+sfcs-PG0:sfc_u20_k8s_5g_uth',     'UBUNTU 20.04 K8s 5G Utah'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU18-64-STD',           'UBUNTU 18.04'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-ARM',           'UBUNTU22-64-ARM'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU20-64-STD',           'UBUNTU 20.04'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU16-64-STD',           'UBUNTU 16.04'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//CENTOS7-64-STD',            'CENTOS 7'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//FBSD112-64-STD',            'FreeBSD 11.2'),
 ]
