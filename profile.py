@@ -151,19 +151,23 @@ if params.phystype != "":
     if len(tokens) != 1:
         pc.reportError(portal.ParameterError("Only a single type is allowed", ["phystype"]))
 
-# <<< added: validate per-node hardware list
+# <<< fixed: validate per-node hardware list
 if not params.sameHardwareType:
     hw_tokens = [t.strip() for t in params.hardwareTypeList.split(",") if t.strip()]
     if len(hw_tokens) != params.nodeCount:
         pc.reportError(portal.ParameterError(
-            f"hardwareTypeList must contain {params.nodeCount} entries (comma-separated)", ["hardwareTypeList"]))
+            "hardwareTypeList must contain %d entries (comma-separated)" % params.nodeCount,
+            ["hardwareTypeList"]
+        ))
 
-# <<< added: validate per-node OS list
+# <<< fixed: validate per-node OS list
 if not params.sameOS:
     os_tokens = [o.strip() for o in params.osImageList.split(",") if o.strip()]
     if len(os_tokens) != params.nodeCount:
         pc.reportError(portal.ParameterError(
-            f"osImageList must contain {params.nodeCount} entries (comma-separated)", ["osImageList"]))
+            "osImageList must contain %d entries (comma-separated)" % params.nodeCount,
+            ["osImageList"]
+        ))
 
 pc.verifyParameters()
 
