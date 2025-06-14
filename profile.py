@@ -106,20 +106,20 @@ initial_params = pc.bindParameters()
 for i in range(initial_params.nodeCount):
     # Per-node OS selector
     pc.defineParameter(
-        f"osImage_{i}",
-        f"OS image for node {i+1}",
+        "osImage_%d" % i,
+        "OS image for node %d" % (i + 1),
         portal.ParameterType.IMAGE,
         imageList[1], imageList,
-        longDescription=f"Select OS image for node {i+1}",
+        longDescription="Select OS image for node %d" % (i + 1),
         advanced=True
     )
     # Per-node hardware selector
     pc.defineParameter(
-        f"phystype_{i}",
-        f"Hardware type for node {i+1}",
+        "phystype_%d" % i,
+        "Hardware type for node %d" % (i + 1),
         portal.ParameterType.NODETYPE,
         "",
-        longDescription=f"Select hardware type for node {i+1}",
+        longDescription="Select hardware type for node %d" % (i + 1),
         advanced=True
     )
 
@@ -138,7 +138,6 @@ if params.tempFileSystemSize < 0 or params.tempFileSystemSize > 200:
         ["tempFileSystemSize"]
     ))
 if params.phystype:
-    # global phystype must be a single type
     tokens = params.phystype.split(",")
     if len(tokens) != 1:
         pc.reportError(portal.ParameterError("Only a single type is allowed", ["phystype"]))
@@ -160,15 +159,20 @@ if params.nodeCount > 1:
 
 # Add nodes
 for i in range(params.nodeCount):
-    name = f"vm{i}" if params.useVMs else f"node{i}"
-    node = request.XenVM(name) if params.useVMs else request.RawPC(name)
+    # Name & node object
+    if params.useVMs:
+        name = "vm%d" % i
+        node = request.XenVM(name)
+    else:
+        name = "node%d" % i
+        node = request.RawPC(name)
 
     # OS image assignment
     if params.sameOS:
         if params.osImage and params.osImage != "default":
             node.disk_image = params.osImage
     else:
-        os_choice = getattr(params, f"osImage_{i}")
+        os_choice = getattr(params, "osImage_%d" % i)
         if os_choice and os_choice != "default":
             node.disk_image = os_choice
 
@@ -182,14 +186,14 @@ for i in range(params.nodeCount):
         if params.phystype:
             node.hardware_type = params.phystype
     else:
-        hw_choice = getattr(params, f"phystype_{i}")
+        hw_choice = getattr(params, "phystype_%d" % i)
         if hw_choice:
             node.hardware_type = hw_choice
 
     # Optional blockstore
     if params.tempFileSystemSize > 0 or params.tempFileSystemMax:
-        bs = node.Blockstore(f"{name}-bs", params.tempFileSystemMount)
-        bs.size = "0GB" if params.tempFileSystemMax else f"{params.tempFileSystemSize}GB"
+        bs = node.Blockstore(name + "-bs", params.tempFileSystemMount)
+        bs.size = "0GB" if params.tempFileSystemMax else str(params.tempFileSystemSize) + "GB"
         bs.placement = "any"
 
     # Start VNC if requested
