@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Variable number of nodes in a LAN. You have the option of picking from one
 of several standard images we provide, or just use the default (typically a recent
 version of Ubuntu). You may also optionally pick different hardware types
@@ -17,7 +18,7 @@ pc = portal.Context()
 request = pc.makeRequestRSpec()
 
 # -------------------------------------------------------------------
-# 1) Top‐level parameters (no assumptions about max nodes)
+# 1) Top-level parameters (no assumptions about max nodes)
 # -------------------------------------------------------------------
 
 pc.defineParameter(
@@ -36,7 +37,7 @@ pc.defineParameter(
     longDescription="Uncheck to pick a different hardware type for each node."
 )
 
-# the rest of your unchanged parameters:
+# The rest of your unchanged parameters:
 pc.defineParameter("useVMs",  "Use XEN VMs", portal.ParameterType.BOOLEAN, False,
                    longDescription="Create XEN VMs instead of allocating bare metal nodes.")
 pc.defineParameter("startVNC",  "Start X11 VNC on your nodes", portal.ParameterType.BOOLEAN, False,
@@ -68,22 +69,22 @@ pc.defineParameter("tempFileSystemMount", "Temporary Filesystem Mount Point",
 
 initial_params = pc.bindParameters()
 
-# list of images for all selectors:
+# list of images for all selectors
 imageList = [
-    ('default', 'Default Image'),
-    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:ztx_ubuntu22', 'UBUNTU 22.04 ZTX'),
-    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:p4_sdn', 'P4-SDN UBUNTU22'),
-    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:BG_QOE_PRED_P4_SDN', 'QOE-PRED-P4-SDN'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD', 'UBUNTU22-64-STD'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-BETA', 'UBUNTU24-64-BETA'),
-    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:ubuntu24lts', 'UBUNTU 24.04 LTS'),
-    ('urn:publicid:IDN+utah.cloudlab.us+image+sfcs-PG0:sfc_u20_k8s_5g_uth', 'UBUNTU 20.04 K8s 5G Utah'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU18-64-STD', 'UBUNTU 18.04'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-ARM', 'UBUNTU22-64-ARM'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU20-64-STD', 'UBUNTU 20.04'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU16-64-STD', 'UBUNTU 16.04'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//CENTOS7-64-STD',  'CENTOS 7'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//FBSD112-64-STD', 'FreeBSD 11.2'),
+    ('default',   'Default Image'),
+    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:ztx_ubuntu22',   'UBUNTU 22.04 ZTX'),
+    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:p4_sdn',        'P4-SDN UBUNTU22'),
+    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:BG_QOE_PRED_P4_SDN','QOE-PRED-P4-SDN'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD',     'UBUNTU22-64-STD'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-BETA',    'UBUNTU24-64-BETA'),
+    ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:ubuntu24lts',    'UBUNTU 24.04 LTS'),
+    ('urn:publicid:IDN+utah.cloudlab.us+image+sfcs-PG0:sfc_u20_k8s_5g_uth','UBUNTU 20.04 K8s 5G Utah'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU18-64-STD',     'UBUNTU 18.04'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-ARM',     'UBUNTU22-64-ARM'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU20-64-STD',     'UBUNTU 20.04'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU16-64-STD',     'UBUNTU 16.04'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//CENTOS7-64-STD',      'CENTOS 7'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops//FBSD112-64-STD',      'FreeBSD 11.2'),
 ]
 
 # Global OS selector: visible only when sameOS=True
@@ -91,37 +92,37 @@ pc.defineParameter(
     "osImage", "Select OS image (global)", portal.ParameterType.IMAGE,
     imageList[1], imageList,
     longDescription="If using the same OS for every node, pick it here.",
-    advanced = (not initial_params.sameOS)
+    advanced=not initial_params.sameOS
 )
 
 # Per-node OS selectors: visible only when sameOS=False
 for i in range(initial_params.nodeCount):
     pc.defineParameter(
         "osImage_%d" % i,
-        "OS image for node %d" % (i+1),
+        "OS image for node %d" % (i + 1),
         portal.ParameterType.IMAGE,
         imageList[1], imageList,
-        longDescription="Select OS image for node %d" % (i+1),
-        advanced = initial_params.sameOS
+        longDescription="Select OS image for node %d" % (i + 1),
+        advanced=initial_params.sameOS
     )
 
-# Global hardware‐type selector: visible only when sameHardwareType=True
+# Global hardware-type selector: visible only when sameHardwareType=True
 pc.defineParameter(
     "phystype", "Select hardware type (global)", portal.ParameterType.NODETYPE,
     "",
     longDescription="If using the same hardware for every node, pick it here.",
-    advanced = (not initial_params.sameHardwareType)
+    advanced=not initial_params.sameHardwareType
 )
 
 # Per-node hardware selectors: visible only when sameHardwareType=False
 for i in range(initial_params.nodeCount):
     pc.defineParameter(
         "phystype_%d" % i,
-        "Hardware type for node %d" % (i+1),
+        "Hardware type for node %d" % (i + 1),
         portal.ParameterType.NODETYPE,
         "",
-        longDescription="Select hardware type for node %d" % (i+1),
-        advanced = initial_params.sameHardwareType
+        longDescription="Select hardware type for node %d" % (i + 1),
+        advanced=initial_params.sameHardwareType
     )
 
 # -------------------------------------------------------------------
