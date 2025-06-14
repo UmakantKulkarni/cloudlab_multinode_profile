@@ -20,7 +20,7 @@ pc = portal.Context()
 request = pc.makeRequestRSpec()
 
 # -------------------------------------------------------------------
-# List of available OS images
+# Full list of OS images
 # -------------------------------------------------------------------
 imageList = [
     ('default',    'Default Image'),
@@ -49,7 +49,6 @@ ps = pc.defineStructParameter(
     hide             = False,
     multiValueTitle  = 'Add another cluster block',
     members = [
-        # Let CloudLab UI enumerate available aggregates automatically:
         portal.Parameter(
             'cluster', 'Cluster (site)', portal.ParameterType.AGGREGATE, '',
             longDescription='Select which CloudLab aggregate (site) to use.'
@@ -80,25 +79,14 @@ ps = pc.defineStructParameter(
 # -------------------------------------------------------------------
 params = pc.bindParameters()
 
-# Must have at least one cluster block
-if not params.clusters:
-    pc.reportError(portal.ParameterError(
-        'You must define at least one cluster block.',
-        ['clusters']
-    ))
-
-# Validate each block
+# Validate each cluster block
 for idx, cluster in enumerate(params.clusters):
-    if not cluster.cluster:
-        pc.reportError(portal.ParameterError(
-            'Entry %d: must select a cluster (site).' % (idx + 1),
-            ['clusters[%d].cluster' % idx]
-        ))
     if cluster.count < 1:
         pc.reportError(portal.ParameterError(
             'Entry %d: count must be >= 1.' % (idx + 1),
             ['clusters[%d].count' % idx]
         ))
+# we allow an empty cluster value to use the default (local) site
 
 pc.verifyParameters()
 
@@ -107,9 +95,12 @@ pc.verifyParameters()
 # -------------------------------------------------------------------
 for cluster in params.clusters:
     # Derive a short site name from the URN, e.g. "emulab.net" → "emulab"
-    parts = cluster.cluster.split('+')
-    if len(parts) > 1:
-        short = parts[1].split('.')[0]
+    if cluster.cluster:
+        parts = cluster.cluster.split('+')
+        if len(parts) > 1:
+            short = parts[1].split('.')[0]
+        else:
+            short = 'site'
     else:
         short = 'site'
 
@@ -123,9 +114,10 @@ for cluster in params.clusters:
 
     for i in range(cluster.count):
         # Name nodes as "<short>-<index>"
-        name = "%s-%d" % (short, i)
+        name = '%s-%d' % (short, i)
         node = request.RawPC(name)
-        node.component_manager_id = cluster.cluster
+        if cluster.cluster:
+            node.component_manager_id = cluster.cluster
 
         # Apply per-node OS image
         if cluster.osImage and cluster.osImage != 'default':
