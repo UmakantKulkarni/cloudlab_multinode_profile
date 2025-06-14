@@ -1,21 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Parameterized profile to create an experiment via multiple LANs.
-
-Each LAN block lets you choose:
- - how many nodes to request on that LAN,
- - which OS image each node should run,
- - which hardware type each node should use.
-
-Click "Add another LAN block" to create LAN1, LAN2, etc. At the end,
-all of those LANs will be interconnected by a backbone LAN.
-"""
+"""Parameterized profile: define nodes and connect all together on a single LAN."""
 
 import geni.portal as portal
 import geni.rspec.pg as pg
-import geni.rspec.igext as ig
 import geni.rspec.emulab as emulab
 
-pc      = portal.Context()
+pc = portal.Context()
 request = pc.makeRequestRSpec()
 
 # -------------------------------------------------------------------
@@ -39,29 +29,65 @@ imageList = [
 ]
 
 # -------------------------------------------------------------------
-# 1) Define a multi-value "lans" struct parameter
+# Top-level optional parameters
+# -------------------------------------------------------------------
+pc.defineParameter(
+    "useVMs", "Use XEN VMs", portal.ParameterType.BOOLEAN, False,
+    longDescription="Create XEN VMs instead of bare-metal nodes."
+)
+pc.defineParameter(
+    "startVNC", "Start X11 VNC on your nodes", portal.ParameterType.BOOLEAN, False,
+    longDescription="Enable browser-based VNC access on each node."
+)
+pc.defineParameter(
+    "linkSpeed", "Link Speed", portal.ParameterType.INTEGER, 0,
+    [(0, "Any"), (100000, "100Mb/s"), (1000000, "1Gb/s"),
+     (10000000, "10Gb/s"), (25000000, "25Gb/s"), (100000000, "100Gb/s")],
+    advanced=True,
+    longDescription="Specific link speed for the LAN."
+)
+pc.defineParameter(
+    "bestEffort", "Best Effort", portal.ParameterType.BOOLEAN, False,
+    advanced=True,
+    longDescription="Ignore bandwidth constraints for very large LANs."
+)
+pc.defineParameter(
+    "sameSwitch", "No Interswitch Links", portal.ParameterType.BOOLEAN, False,
+    advanced=True,
+    longDescription="Force all nodes on a single switch (may limit mapping)."
+)
+pc.defineParameter(
+    "tempFileSystemSize", "Temporary Filesystem Size",
+    portal.ParameterType.INTEGER, 0, advanced=True,
+    longDescription="GB of ephemeral storage (deleted on teardown)."
+)
+pc.defineParameter(
+    "tempFileSystemMax", "Temp Filesystem Max Space",
+    portal.ParameterType.BOOLEAN, False, advanced=True,
+    longDescription="Allocate all available disk space instead of specifying a size."
+)
+pc.defineParameter(
+    "tempFileSystemMount", "Temporary Filesystem Mount Point",
+    portal.ParameterType.STRING, "/mydata", advanced=True,
+    longDescription="Mount point for the temporary filesystem."
+)
+
+# -------------------------------------------------------------------
+# 1) Define a multi-value "nodes" struct parameter
 # -------------------------------------------------------------------
 ps = pc.defineStructParameter(
-    'lans', 'LANs', [],
-    multiValue       = True,
-    min              = 1,
-    hide             = False,
-    multiValueTitle  = 'Add another LAN block',
-    members = [
+    "nodes", "Nodes", [], 
+    multiValue=True, min=1, hide=False, multiValueTitle="Add another node",
+    members=[
         portal.Parameter(
-            'count', 'Number of Nodes',
-            portal.ParameterType.INTEGER, 1,
-            longDescription='How many nodes to request on this LAN.'
-        ),
-        portal.Parameter(
-            'osImage', 'OS Image for each node',
+            "osImage", "OS Image for this node",
             portal.ParameterType.IMAGE, imageList[0], imageList,
-            longDescription='Select the OS image to install on these nodes.'
+            longDescription="Select the OS image for this node."
         ),
         portal.Parameter(
-            'hwType', 'Hardware type for each node',
-            portal.ParameterType.NODETYPE, '',
-            longDescription='Specify a hardware type (e.g., pc3000, d710), or leave default.'
+            "hwType", "Hardware type for this node",
+            portal.ParameterType.NODETYPE, "",
+            longDescription="Specify a hardware type (e.g., pc3000, d710), or leave default."
         ),
     ]
 )
@@ -71,59 +97,69 @@ ps = pc.defineStructParameter(
 # -------------------------------------------------------------------
 params = pc.bindParameters()
 
-for idx, lanblock in enumerate(params.lans):
-    if lanblock.count < 1:
-        pc.reportError(portal.ParameterError(
-            'LAN %d: node count must be at least 1.' % (idx + 1),
-            ['lans[%d].count' % idx]
-        ))
+# At least one node
+if not params.nodes:
+    pc.reportError(portal.ParameterError(
+        "You must define at least one node.",
+        ["nodes"]
+    ))
+# Temporary FS size sanity
+if params.tempFileSystemSize < 0 or params.tempFileSystemSize > 200:
+    pc.reportError(portal.ParameterError(
+        "Please specify a temp filesystem size between 0 and 200GB.",
+        ["tempFileSystemSize"]
+    ))
 
 pc.verifyParameters()
 
 # -------------------------------------------------------------------
-# 3) Build the RSpec
+# 3) Create a single LAN for all nodes
 # -------------------------------------------------------------------
-all_nodes = []
-
-for j, lanblock in enumerate(params.lans, start=1):
-    # Create this LAN if more than one node
+if len(params.nodes) > 1:
+    if len(params.nodes) == 2:
+        lan = request.Link()
+    else:
+        lan = request.LAN()
+    if params.bestEffort:
+        lan.best_effort = True
+    elif params.linkSpeed > 0:
+        lan.bandwidth = params.linkSpeed
+    if params.sameSwitch:
+        lan.setNoInterSwitchLinks()
+else:
     lan = None
-    if lanblock.count > 1:
-        lan = (request.Link() if lanblock.count == 2 else request.LAN())
 
-    # instantiate nodes in this LAN
-    for i in range(lanblock.count):
-        node_name = 'lan%d-%d' % (j, i)
-        node = request.RawPC(node_name)
+# -------------------------------------------------------------------
+# 4) Instantiate each node and attach to LAN
+# -------------------------------------------------------------------
+for i, nodeParam in enumerate(params.nodes):
+    name = "vm%d" % i if params.useVMs else "node%d" % i
+    node = request.XenVM(name) if params.useVMs else request.RawPC(name)
 
-        # Apply OS image
-        if lanblock.osImage and lanblock.osImage != 'default':
-            node.disk_image = lanblock.osImage
+    # OS image
+    if nodeParam.osImage and nodeParam.osImage != "default":
+        node.disk_image = nodeParam.osImage
 
-        # Apply hardware type
-        if lanblock.hwType:
-            node.hardware_type = lanblock.hwType
+    # Hardware type
+    if nodeParam.hwType:
+        node.hardware_type = nodeParam.hwType
 
-        # Start VNC
+    # Attach to LAN
+    if lan:
+        iface = node.addInterface("eth1")
+        lan.addInterface(iface)
+
+    # Optional ephemeral blockstore
+    if params.tempFileSystemSize > 0 or params.tempFileSystemMax:
+        bs = node.Blockstore("%s-bs" % name, params.tempFileSystemMount)
+        bs.size = "0GB" if params.tempFileSystemMax else "%dGB" % params.tempFileSystemSize
+        bs.placement = "any"
+
+    # VNC
+    if params.startVNC:
         node.startVNC()
 
-        # Attach to LAN if created
-        if lan:
-            iface = node.addInterface('eth1')
-            lan.addInterface(iface)
-
-        all_nodes.append(node)
-
 # -------------------------------------------------------------------
-# 4) Interconnect all LANs together
-# -------------------------------------------------------------------
-if len(all_nodes) > 1:
-    backbone = request.LAN()
-    for node in all_nodes:
-        iface = node.addInterface('eth2')
-        backbone.addInterface(iface)
-
-# -------------------------------------------------------------------
-# 5) Output RSpec
+# 5) Print the RSpec
 # -------------------------------------------------------------------
 pc.printRequestRSpec(request)
