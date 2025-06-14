@@ -108,24 +108,30 @@ pc.verifyParameters()
 for cluster in params.clusters:
     # Derive a short site name from the URN, e.g. "emulab.net" → "emulab"
     parts = cluster.cluster.split('+')
-    short = parts[1].split('.')[0] if len(parts) > 1 else 'site'
+    if len(parts) > 1:
+        short = parts[1].split('.')[0]
+    else:
+        short = 'site'
 
     # Create a LAN object if requested
     lan = None
     if cluster.count > 1 and cluster.lan:
-        lan = request.Link() if cluster.count == 2 else request.LAN()
+        if cluster.count == 2:
+            lan = request.Link()
+        else:
+            lan = request.LAN()
 
     for i in range(cluster.count):
-        # Name nodes as "<site>-<index>"
-        name = f"{short}-{i}"
+        # Name nodes as "<short>-<index>"
+        name = "%s-%d" % (short, i)
         node = request.RawPC(name)
         node.component_manager_id = cluster.cluster
 
-        # Apply OS image
+        # Apply per-node OS image
         if cluster.osImage and cluster.osImage != 'default':
             node.disk_image = cluster.osImage
 
-        # Apply hardware type
+        # Apply per-node hardware type
         if cluster.hwType:
             node.hardware_type = cluster.hwType
 
