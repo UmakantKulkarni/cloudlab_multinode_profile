@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Paramaterized profile to create a multisite experiment.
-
-Each “cluster” block lets you choose:
- - which CloudLab aggregate (site) to use,
- - how many nodes to request,
- - whether to put them on a LAN,
- - which OS image each node should run,
- - which hardware type each node should use.
-
-Click the “+ Clusters” button to add as many blocks as you need.
-"""
+# Parameterized profile to create a multisite experiment.
 
 import geni.portal as portal
 import geni.rspec.pg as pg
@@ -23,7 +13,7 @@ request = pc.makeRequestRSpec()
 # Full list of OS images
 # -------------------------------------------------------------------
 imageList = [
-    ('default',    'Default Image'),
+    ('default', 'Default Image'),
     ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:ztx_ubuntu22',        'UBUNTU 22.04 ZTX'),
     ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:p4_sdn',             'P4-SDN UBUNTU22'),
     ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:BG_QOE_PRED_P4_SDN','QOE-PRED-P4-SDN'),
@@ -44,21 +34,24 @@ imageList = [
 # -------------------------------------------------------------------
 ps = pc.defineStructParameter(
     'clusters', 'Clusters', [],
-    multiValue       = True,
-    min              = 1,
-    hide             = False,
-    multiValueTitle  = 'Add another cluster block',
+    multiValue      = True,
+    min             = 1,
+    hide            = False,
+    multiValueTitle = 'Add another cluster block',
     members = [
         portal.Parameter(
-            'cluster', 'Cluster (site)', portal.ParameterType.AGGREGATE, '',
-            longDescription='Select which CloudLab aggregate (site) to use.'
+            'cluster', 'Cluster (site)',
+            portal.ParameterType.AGGREGATE, '',
+            longDescription='Select which CloudLab site to use.'
         ),
         portal.Parameter(
-            'count', 'Number of Nodes', portal.ParameterType.INTEGER, 1,
+            'count', 'Number of Nodes',
+            portal.ParameterType.INTEGER, 1,
             longDescription='How many nodes to request at this site.'
         ),
         portal.Parameter(
-            'lan', 'Create a LAN?', portal.ParameterType.BOOLEAN, False,
+            'lan', 'Create a LAN?',
+            portal.ParameterType.BOOLEAN, False,
             longDescription='If checked, interconnect these nodes on a LAN.'
         ),
         portal.Parameter(
@@ -69,7 +62,7 @@ ps = pc.defineStructParameter(
         portal.Parameter(
             'hwType', 'Hardware type for each node',
             portal.ParameterType.NODETYPE, '',
-            longDescription='Specify a hardware type (e.g., pc3000, d710), or leave default.'
+            longDescription='Specify a hardware type (e.g., pc3000, d710).'
         ),
     ]
 )
@@ -86,7 +79,7 @@ for idx, cluster in enumerate(params.clusters):
             'Entry %d: count must be >= 1.' % (idx + 1),
             ['clusters[%d].count' % idx]
         ))
-# we allow an empty cluster value to use the default (local) site
+    # cluster.cluster may be empty to use the default site
 
 pc.verifyParameters()
 
@@ -94,7 +87,7 @@ pc.verifyParameters()
 # 3) Build the RSpec
 # -------------------------------------------------------------------
 for cluster in params.clusters:
-    # Derive a short site name from the URN, e.g. "emulab.net" → "emulab"
+    # Derive a short site name from the URN, e.g. urn:publicid:...+emulab.net+... -> "emulab"
     if cluster.cluster:
         parts = cluster.cluster.split('+')
         if len(parts) > 1:
@@ -107,33 +100,25 @@ for cluster in params.clusters:
     # Create a LAN object if requested
     lan = None
     if cluster.count > 1 and cluster.lan:
-        if cluster.count == 2:
-            lan = request.Link()
-        else:
-            lan = request.LAN()
+        lan = request.Link() if cluster.count == 2 else request.LAN()
 
     for i in range(cluster.count):
-        # Name nodes as "<short>-<index>"
         name = '%s-%d' % (short, i)
         node = request.RawPC(name)
         if cluster.cluster:
             node.component_manager_id = cluster.cluster
 
-        # Apply per-node OS image
         if cluster.osImage and cluster.osImage != 'default':
             node.disk_image = cluster.osImage
 
-        # Apply per-node hardware type
         if cluster.hwType:
             node.hardware_type = cluster.hwType
 
-        # Start VNC if desired
         node.startVNC()
 
-        # Attach to LAN if created
         if lan:
             iface = node.addInterface('eth1')
             lan.addInterface(iface)
 
-# Print the RSpec to the enclosing page
+# Print the RSpec
 pc.printRequestRSpec(request)
