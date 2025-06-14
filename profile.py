@@ -50,11 +50,25 @@ pc.defineParameter("osImage", "Select OS image",
                    longDescription="Most clusters have this set of images, " +
                    "pick your favorite one.")
 
+# <<< added: allow per-node OS choice
+pc.defineParameter("sameOS", "Use same OS for all nodes", portal.ParameterType.BOOLEAN, True,
+                   longDescription="If checked, use the single OS image above for every node. "
+                                   "Otherwise specify a comma-separated list of image URNs.")
+pc.defineParameter("osImageList", "Comma-separated OS image URNs", portal.ParameterType.STRING, "",
+                   longDescription="List of OS image URNs for each node if not using the same OS.")
+
 # Optional physical type for all nodes.
 pc.defineParameter("phystype",  "Optional physical node type",
                    portal.ParameterType.NODETYPE, "",
                    longDescription="Specify a physical node type (pc3000,d710,etc) " +
                    "instead of letting the resource mapper choose for you.")
+
+# <<< added: allow per-node hardware choice
+pc.defineParameter("sameHardwareType", "Use same hardware type for all nodes", portal.ParameterType.BOOLEAN, True,
+                   longDescription="If checked, use the single hardware type above for every node. "
+                                   "Otherwise specify a comma-separated list of types.")
+pc.defineParameter("hardwareTypeList", "Comma-separated hardware types", portal.ParameterType.STRING, "",
+                   longDescription="List of hardware types for each node if not using the same type.")
 
 # Optional root filesystem size
 #pc.defineParameter("rootFileSystemSize", "Root Filesystem Size",
@@ -137,7 +151,32 @@ if params.phystype != "":
     if len(tokens) != 1:
         pc.reportError(portal.ParameterError("Only a single type is allowed", ["phystype"]))
 
+# <<< added: validate per-node hardware list
+if not params.sameHardwareType:
+    hw_tokens = [t.strip() for t in params.hardwareTypeList.split(",") if t.strip()]
+    if len(hw_tokens) != params.nodeCount:
+        pc.reportError(portal.ParameterError(
+            f"hardwareTypeList must contain {params.nodeCount} entries (comma-separated)", ["hardwareTypeList"]))
+
+# <<< added: validate per-node OS list
+if not params.sameOS:
+    os_tokens = [o.strip() for o in params.osImageList.split(",") if o.strip()]
+    if len(os_tokens) != params.nodeCount:
+        pc.reportError(portal.ParameterError(
+            f"osImageList must contain {params.nodeCount} entries (comma-separated)", ["osImageList"]))
+
 pc.verifyParameters()
+
+# <<< added: prepare per-node lists
+if not params.sameHardwareType:
+    hwList = [t.strip() for t in params.hardwareTypeList.split(",")]
+else:
+    hwList = None
+
+if not params.sameOS:
+    osList = [o.strip() for o in params.osImageList.split(",")]
+else:
+    osList = None
 
 # Create link/lan.
 if params.nodeCount > 1:
@@ -145,14 +184,12 @@ if params.nodeCount > 1:
         lan = request.Link()
     else:
         lan = request.LAN()
-        pass
     if params.bestEffort:
         lan.best_effort = True
     elif params.linkSpeed > 0:
         lan.bandwidth = params.linkSpeed
     if params.sameSwitch:
         lan.setNoInterSwitchLinks()
-    pass
 
 # Process nodes, adding to link or lan.
 for i in range(params.nodeCount):
@@ -163,20 +200,26 @@ for i in range(params.nodeCount):
     else:
         name = "node" + str(i)
         node = request.RawPC(name)
-        #node.addService(pg.Execute(shell="sh", command="sh /local/repository/setup-grow-rootfs.sh {}".format(str(params.rootFileSystemSize))))
-        pass
-    if params.osImage and params.osImage != "default":
+
+    # OS image assignment (per-node or global)
+    if osList:
+        image = osList[i]
+        if image and image != "default":
+            node.disk_image = image
+    elif params.osImage and params.osImage != "default":
         node.disk_image = params.osImage
-        pass
+
     # Add to lan
     if params.nodeCount > 1:
         iface = node.addInterface("eth1")
         lan.addInterface(iface)
-        pass
-    # Optional hardware type.
-    if params.phystype != "":
+
+    # Hardware type assignment (per-node or global)
+    if hwList:
+        node.hardware_type = hwList[i]
+    elif params.phystype != "":
         node.hardware_type = params.phystype
-        pass
+
     # Optional Blockstore
     if params.tempFileSystemSize > 0 or params.tempFileSystemMax:
         bs = node.Blockstore(name + "-bs", params.tempFileSystemMount)
@@ -184,19 +227,11 @@ for i in range(params.nodeCount):
             bs.size = "0GB"
         else:
             bs.size = str(params.tempFileSystemSize) + "GB"
-            pass
         bs.placement = "any"
-        pass
-    #
-    # Install and start X11 VNC. Calling this informs the Portal that you want a VNC
-    # option in the node context menu to create a browser VNC client.
-    #
-    # If you prefer to start the VNC server yourself (on port 5901) then add nostart=True. 
-    #
+
+    # Install and start X11 VNC if requested
     if params.startVNC:
         node.startVNC()
-        pass
-    pass
 
 # Print the RSpec to the enclosing page.
 pc.printRequestRSpec(request)
