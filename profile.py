@@ -17,7 +17,7 @@ imageList = [
     ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:p4_sdn',               'P4-SDN UBUNTU22'),
     ('urn:publicid:IDN+cloudlab.umass.edu+image+sfcs-PG0:BG_QOE_PRED_P4_SDN',   'QOE-PRED-P4-SDN'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-STD',           'UBUNTU22-64-STD'),
-    ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU24-64-BETA',          'UBUNTU24-64-BETA'),
+    ('urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU24-64-STD',            'UBUNTU24-64-STD'),
     ('urn:publicid:IDN+utah.cloudlab.us+image+sfcs-PG0:sfc_u20_k8s_5g_uth',     'UBUNTU 20.04 K8s 5G Utah'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU22-64-ARM',           'UBUNTU22-64-ARM'),
     ('urn:publicid:IDN+emulab.net+image+emulab-ops//UBUNTU20-64-STD',           'UBUNTU 20.04'),
